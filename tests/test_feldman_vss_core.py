@@ -3,6 +3,7 @@
 
 import copy
 import hashlib
+import logging
 import random
 import secrets
 import time
@@ -408,15 +409,99 @@ def test_constant_time_compare(a, b, expected):
 
 
 @pytest.mark.security
-def test_constant_time_compare_large_value_error():
-    """Test constant_time_compare raises ValueError for excessively large inputs."""
-    large_int = mpz(1) << 1_100_000  # > 1M bits
-    with pytest.raises(ValueError, match="too large for secure comparison"):
-        constant_time_compare(large_int, large_int)
+def test_constant_time_compare_large_value_error(caplog):
+    """Test constant_time_compare raises ValueError for excessively large inputs
+       or handles internal conversion errors gracefully."""
+    # --- Test Integer Size Limit ---
+    large_val_bits = 1_100_000
+    # Create TWO distinct objects with the same large value
+    large_int_a = mpz(1) << large_val_bits
+    large_int_b = mpz(1) << large_val_bits
 
-    large_bytes = b"a" * 11_000_000  # > 10MB
-    with pytest.raises(ValueError, match="too large for secure comparison"):
-        constant_time_compare(large_bytes, large_bytes)
+    # Ensure they are different objects but equal value (sanity check for the test itself)
+    assert large_int_a is not large_int_b
+    assert large_int_a == large_int_b
+
+    with pytest.raises(ValueError, match="Integer values too large"):
+        constant_time_compare(large_int_a, large_int_b) # Use distinct objects
+
+    # --- Test Bytes Size Limit ---
+    large_bytes_len = 10_000_001 # Just over 10MB limit
+    # Create TWO distinct large byte objects
+    large_bytes_a = b"a" * large_bytes_len
+    # Creating a distinct object might require slicing or joining
+    large_bytes_b = b'a' * (large_bytes_len -1) + b'a'
+
+    assert large_bytes_a is not large_bytes_b
+    assert large_bytes_a == large_bytes_b
+
+    # Escape parentheses for regex match in pytest.raises
+    with pytest.raises(ValueError, match="Input values \\(bytes\\) too large"):
+        constant_time_compare(large_bytes_a, large_bytes_b) # Use distinct objects
+
+    # --- Test String Size Limit ---
+    large_str_len = 2_500_001
+    large_str_a = "a" * large_str_len
+    large_str_b = "a" * (large_str_len - 1) + "a" # Ensure distinct object
+
+    assert large_str_a is not large_str_b
+    assert large_str_a == large_str_b
+
+    with pytest.raises(ValueError, match="String values too large"):
+        constant_time_compare(large_str_a, large_str_b) # Use distinct objects
+
+    # --- Test Mixed Type Large Size Limit (Internal String Conversion Failure) ---
+    # Create a value whose string representation exceeds Python's internal limit
+    very_large_int_for_str = mpz(1) << 30_000_000 # String rep will be > 10MB and > 4300 digits
+    large_str_rep_a = very_large_int_for_str
+    # Convert the other operand to a *different* type (e.g., small string)
+    # to ensure it hits the mixed-type 'else' block.
+    large_str_rep_b = "small string"
+
+    # Ensure they are different objects and types
+    assert large_str_rep_a is not large_str_rep_b
+    assert type(large_str_rep_a) is not type(large_str_rep_b)
+
+    # Expect the function to return False and log the internal conversion error
+    caplog.clear() # Clear previous logs from other test parts
+    with caplog.at_level(logging.DEBUG): # Ensure debug logs are captured
+        result = constant_time_compare(large_str_rep_a, large_str_rep_b)
+
+    assert result is False, "Function should return False on internal string conversion error"
+    
+    # Check for the specific log message in any of the log records
+    found_expected_log = False
+    expected_substring = "Comparison failed due to internal string conversion limits for large integer"
+    for record in caplog.records:
+        if expected_substring in record.message:
+            found_expected_log = True
+            break
+
+    assert found_expected_log, (
+        f"Expected substring '{expected_substring}' not found in any log record. "
+        f"Captured logs:\n{caplog.text}"
+    )
+    
+    assert "Error in constant_time_compare comparison logic" in caplog.text
+
+
+    # --- Test Mixed Type Large Size Limit (Post-Stringification Size Check) ---
+    # Create a moderately large int (string rep < 4300 digits)
+    moderate_int = 10**4000 # String representation is ~4001 digits
+
+    # Create a string whose encoded len > 10MB
+    very_long_string = "b" * 10_000_001 # Encodes to > 10MB
+
+    # Ensure they are different types
+    assert type(moderate_int) is not type(very_long_string)
+
+    # This should now raise the specific ValueError from the check after encoding
+    # because str(moderate_int) works, but the encoded length of very_long_string fails the check
+    with pytest.raises(ValueError, match="Mixed-type values too large after stringification"):
+         constant_time_compare(moderate_int, very_long_string)
+
+    with pytest.raises(ValueError, match="Mixed-type values too large after stringification"):
+         constant_time_compare(very_long_string, moderate_int)
 
 
 @pytest.mark.security

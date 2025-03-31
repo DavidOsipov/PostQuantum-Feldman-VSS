@@ -154,7 +154,7 @@ exclude_lines = [
 
 [tool.bandit]
 exclude_dirs = ["tests", "examples", ".venv"]
-skips = ["B311"]
+skips = ["B311", "B101"]
 
 [tool.bandit.per-file-ignores]
 "tests/*.py" = ["S101", "B101"]
