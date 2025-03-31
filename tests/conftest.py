@@ -74,7 +74,7 @@ except ImportError as e:
     sys.exit(1)
 
 # --- Test Configuration ---
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+logging.basicConfig(level=logging.WARNING, format="%(asctime)s - %(levelname)s - %(message)s")
 test_logger = logging.getLogger("feldman_vss_pytest")
 
 # Use smaller primes for faster testing where appropriate, but default to PQ-secure

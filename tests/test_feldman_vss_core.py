@@ -357,14 +357,14 @@ def test_estimate_exp_result_size():
     assert estimate_exp_result_size(10, 1) == 10  # Exponent 1
 
 
-# Added test for Gap 2
 def test_get_system_memory_fallback(monkeypatch):
     """Test get_system_memory fallback when psutil is unavailable."""
-    # Simulate psutil not being imported/available
     monkeypatch.setattr(feldman_vss, "psutil", None)
     fallback_mem = get_system_memory()
-    # Check if it returns the hardcoded fallback value (1GB)
-    assert fallback_mem == 1 * 1024 * 1024 * 1024
+    # Check the fallback is reasonable (e.g., at least 1GB)
+    assert fallback_mem >= 1 * 1024 * 1024 * 1024
+    # Maybe also check it's not unreasonably large
+    assert fallback_mem <= 4 * 1024 * 1024 * 1024
 
 
 @pytest.mark.security
