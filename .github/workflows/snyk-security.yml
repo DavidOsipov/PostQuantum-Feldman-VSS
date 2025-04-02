@@ -94,7 +94,7 @@ jobs:
       
         # Push the Snyk Code results into GitHub Code Scanning tab
       - name: Upload result to GitHub Code Scanning
-        uses: github/codeql-action/upload-sarif@efffb483ec7bb162c4b7935f8b35ab6b94136c7b
+        uses: github/codeql-action/upload-sarif@dab8a02091b7e1893928f2da086a62b5a8118c33
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_SECRET_TOKEN }}
         with:
