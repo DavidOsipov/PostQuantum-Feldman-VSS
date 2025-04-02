@@ -36,7 +36,7 @@ jobs:
         working-directory: ./site
 
       - name: Install Node.js
-        uses: actions/setup-node@40337cb8f758cccdfe3475af609daa63f81c7e23
+        uses: actions/setup-node@e3ce749e201f52acbab9862647a7b9bd3e37cf76
         with:
           node-version: 22.14.0
 
@@ -80,7 +80,7 @@ jobs:
           path: site/build
 
       - name: Install Node.js
-        uses: actions/setup-node@40337cb8f758cccdfe3475af609daa63f81c7e23
+        uses: actions/setup-node@e3ce749e201f52acbab9862647a7b9bd3e37cf76
         with:
           node-version: 22.14.0
           
