@@ -8,6 +8,7 @@
 [![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=DavidOsipov_PostQuantum-Feldman-VSS&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=DavidOsipov_PostQuantum-Feldman-VSS)
 [![Maintainability Rating](https://sonarcloud.io/api/project_badges/measure?project=DavidOsipov_PostQuantum-Feldman-VSS&metric=sqale_rating)](https://sonarcloud.io/summary/new_code?id=DavidOsipov_PostQuantum-Feldman-VSS)
 [![Reliability Rating](https://sonarcloud.io/api/project_badges/measure?project=DavidOsipov_PostQuantum-Feldman-VSS&metric=reliability_rating)](https://sonarcloud.io/summary/new_code?id=DavidOsipov_PostQuantum-Feldman-VSS)
+![GitHub last commit (branch)](https://img.shields.io/github/last-commit/DavidOsipov/PostQuantum-Feldman-VSS/main)
 
 [![Quality gate](https://sonarcloud.io/api/project_badges/quality_gate?project=DavidOsipov_PostQuantum-Feldman-VSS)](https://sonarcloud.io/summary/new_code?id=DavidOsipov_PostQuantum-Feldman-VSS)
 
