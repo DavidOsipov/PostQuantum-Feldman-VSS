@@ -62,7 +62,7 @@ jobs:
 
       - name: Set up Python
         if: matrix.tool != 'codeql'  # CodeQL has its own Python setup
-        uses: actions/setup-python@e348410e00f449ece8581cb8e88be8f0e7712da6
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
           python-version: '3.13' # Use a consistent Python version for analysis tools
 
