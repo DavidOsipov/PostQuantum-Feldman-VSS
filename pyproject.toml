@@ -40,7 +40,7 @@ classifiers = [
 dependencies = [
   "gmpy2 == 2.2.1",
   "msgpack == 1.1.0",
-  "blake3 == 1.0.4; platform_system != 'Emscripten'",
+  "blake3 ==1.0.5; platform_system != 'Emscripten'",
 ]
 
 [project.optional-dependencies]
