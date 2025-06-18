@@ -19,7 +19,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@5db1cf9a59fb97c40a68accab29236f0da7e94db
         with:
-          python-version: '3.13.3'
+          python-version: '3.13.5'
 
       - name: Install dependencies (including your package in editable mode)
         run: |
