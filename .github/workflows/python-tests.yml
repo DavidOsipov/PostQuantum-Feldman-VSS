@@ -88,7 +88,7 @@ jobs:
 
     - name: Upload coverage report artifact (only for primary version)
       if: matrix.python-version == env.PRIMARY_PYTHON_VERSION && steps.set_coverage_artifact_name.outputs.name != ''
-      uses: actions/upload-artifact@6027e3dd177782cd8ab9af838c04fd81a07f1d47 # Pin to v4
+      uses: actions/upload-artifact@de65e23aa2b7e23d713bb51fbfcb6d502f8667d8 # Pin to v4
       with:
         name: ${{ steps.set_coverage_artifact_name.outputs.name }}
         path: coverage.xml
