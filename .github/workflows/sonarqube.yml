@@ -248,14 +248,14 @@ jobs:
 
       # --- Download Analysis Reports ---
       - name: Download analysis reports
-        uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # Pin to v4
+        uses: actions/download-artifact@448e3f862ab3ef47aa50ff917776823c9946035b # Pin to v4
         with:
           # Download all analysis artifacts into the 'reports/analysis' directory
           path: reports/analysis
 
       # --- Download Coverage Report ---
       - name: Download coverage report
-        uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # Pin to v4
+        uses: actions/download-artifact@448e3f862ab3ef47aa50ff917776823c9946035b # Pin to v4
         with:
           # Use the output from the Python_Tests job to get the correct artifact name
           name: ${{ needs.Python_Tests.outputs.coverage_artifact_name }}
