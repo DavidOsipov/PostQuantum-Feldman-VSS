@@ -1,7 +1,7 @@
 """
 Post-Quantum Secure Feldman's Verifiable Secret Sharing (VSS) Implementation
 
-Version 0.8.1b1
+Version 0.8.1b2
 Developed in 2025 by David Osipov
 Licensed under the MIT License
 
@@ -207,7 +207,7 @@ logging.basicConfig(
 logger = logging.getLogger("feldman_vss")
 
 # Version of the Library
-__version__ = "0.8.1b1"
+__version__ = "0.8.1b2"
 
 
 # The above code is defining the `__all__` list in a Python module. This list specifies the names of
