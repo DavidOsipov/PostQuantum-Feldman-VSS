@@ -141,6 +141,7 @@ Developer: David Osipov
 
 import contextlib
 import hashlib
+import hmac
 import importlib.util
 import logging
 import random
@@ -287,6 +288,10 @@ SAFE_PRIMES: dict[int, int] = {
 
 
 # Type definitions
+# Define the types our function can securely handle.
+ComparableType = TypeVar("ComparableType", int, str, bytes, gmpy2.mpz)
+
+
 # More specific TypedDict definitions for nested structures
 class EvidenceEntryDict(TypedDict):
     party_id: int
@@ -392,7 +397,7 @@ class IntegrationResultDict(TypedDict):
 # Type Aliases for Complex Types
 HashFunc = Callable[[bytes], Any]
 RedundantExecutorFunc = Callable[..., Any]
-ComparableType = Union[int, str, bytes, gmpy2.mpz]
+ComparableType = TypeVar("ComparableType", int, str, bytes, "gmpy2.mpz")
 
 HashCommitment = tuple[FieldElement, Randomizer, Optional[bytes]]  # (hash, randomizer, entropy)
 CommitmentList = list[HashCommitment]  # List of commitments
@@ -417,6 +422,18 @@ class SecurityWarning(Warning):
     Description:
         Warning for potentially insecure configurations or operations
     """
+
+
+class ComparisonError(Exception):
+    """Base class for errors during secure comparison."""
+
+
+class ComparisonTypeError(ComparisonError, TypeError):
+    """Raised for unsupported or mismatched types in secure comparison."""
+
+
+class ComparisonSizeError(ComparisonError, ValueError):
+    """Raised when an input is too large for secure comparison."""
 
 
 # Other exception classes
@@ -760,237 +777,86 @@ class SafeLRUCache(Generic[K, V]):
 
 
 # --- HELPER FUNCTIONS ---
-def constant_time_compare(a: ComparableType, b: ComparableType) -> bool:
+# --- Core Comparison Engine ---
+
+
+def _constant_time_bytes_compare(a: bytes, b: bytes) -> bool:
     """
-    Compare two values in constant time *by design* to prevent timing attacks.
+    Securely compares two byte strings in constant time.
 
-    This implementation handles integers, strings, and bytes with consistent
-    processing time *in the core comparison loop* regardless of where differences occur.
-
-    Args:
-        a: The first value to compare.
-        b: The second value to compare.
-
-    Returns:
-        True if the values are considered equal, False otherwise.
-
-    Raises:
-        ValueError: If inputs exceed predefined size limits for secure comparison.
-        MemoryError: If memory allocation fails during the comparison process.
-
-    Security Notes:
-        - Size limits enforced: max integer bits: 1,000,000, max bytes/string: 10MB.
-        - Type detection and normalization (converting to bytes) is NOT constant-time.
-        - Comparison of normalized byte values IS constant-time *by design*
-          (Python's execution model limits absolute guarantees).
-        - Memory holding intermediate byte representations is explicitly zeroed
-          after comparison (best-effort in Python).
+    This is a wrapper around hmac.compare_digest, which is implemented in C
+    and provides the strongest constant-time guarantee in Python's stdlib.
+    It assumes inputs have been normalized to a fixed length.
     """
-    # Early return for identical object references (memory address equality)
-    # This is safe as it doesn't leak information through timing
+    return hmac.compare_digest(a, b)
+
+
+# --- Normalization Logic ---
+
+
+def _normalize_to_bytes(value: ComparableType, fixed_int_byte_len: int) -> bytes:
+    """
+    Converts a supported value to a canonical, fixed-length byte representation.
+    """
+    if isinstance(value, bytes):
+        return value
+
+    if isinstance(value, str):
+        return value.encode(encoding="utf-8")
+
+    if isinstance(value, (int, gmpy2.mpz)):
+        # Canonical representation for integers: [1-byte sign] + [fixed-length magnitude]
+        if value.bit_length() > fixed_int_byte_len * 8:
+            raise ComparisonSizeError(
+                f"Integer with bit length {value.bit_length()} exceeds the fixed byte length of {fixed_int_byte_len}."
+            )
+
+        sign_byte = b"\x01" if value >= 0 else b"\x00"
+        magnitude_bytes = abs(value).to_bytes(fixed_int_byte_len, byteorder="big")
+
+        return sign_byte + magnitude_bytes
+
+    # This line should be unreachable due to TypeVar constraints, but serves as a safeguard.
+    raise ComparisonTypeError(f"Unsupported type for secure comparison: {type(value)}")
+
+
+# --- 5. The Public-Facing Function (Orchestrator) ---
+
+
+def constant_time_compare(a: ComparableType, b: ComparableType, *, fixed_int_byte_len: int = 512) -> bool:
+    """
+    Compares two values in constant time, providing best-effort protection
+    against timing attacks within Python's limitations.
+    """
+    if not isinstance(fixed_int_byte_len, int) or not (0 < fixed_int_byte_len <= 8192):
+        raise ComparisonSizeError("fixed_int_byte_len must be a positive integer within a safe range (e.g., <= 8192).")
+
+    # Trivial checks that do not leak value-dependent information.
     if a is b:
         return True
 
-    # Input validation - check for None
-    if a is None or b is None:
+    if type(a) is not type(b):
         return False
 
-    # --- SIZE VALIDATION (PRE-CHECKS) ---
-    try:
-        # Integer size limits
-        if isinstance(a, (int, gmpy2.mpz)) and isinstance(b, (int, gmpy2.mpz)):
-            # Use gmpy2's bit_length directly if possible before conversion
-            # Handle potential AttributeError if bit_length is missing, default to 0
-            # Use try-except for attribute access for robustness
-            try:
-                a_bits = a.bit_length() if a != 0 else 0
-            except AttributeError:
-                 a_bits = 0 # Fallback if bit_length doesn't exist
-
-            try:
-                b_bits = b.bit_length() if b != 0 else 0
-            except AttributeError:
-                 b_bits = 0 # Fallback
-
-            if max(a_bits, b_bits) > 1_000_000:
-                raise ValueError("Integer values too large for secure comparison")
-
-        # Direct byte size limits
-        elif isinstance(a, bytes) and isinstance(b, bytes):
-            if max(len(a), len(b)) > 10_000_000:  # 10MB limit
-                raise ValueError("Input values (bytes) too large for secure comparison")
-
-        # String size limits (estimate UTF-8 expansion)
-        elif isinstance(a, str) and isinstance(b, str):
-            # Estimate byte length - UTF-8 can use up to 4 bytes per char
-            est_len = max(len(a), len(b)) * 4
-            if est_len > 10_000_000:  # 10MB limit
-                raise ValueError("String values too large for secure comparison")
-
-    except ValueError as e:
-        # Re-raise only our specific size validation errors
-        if "too large for secure comparison" in str(e):
-            raise
-        # Otherwise treat as comparison failure (should be rare here)
-        logger.debug(f"Size validation error in constant_time_compare: {e}")
-        return False
-    # --- END SIZE VALIDATION ---
-
-    # Initialize security-critical values
-    result: int = 0  # Track differences (1 = different, 0 = same)
-    a_bytes: Union[bytes, None] = None
-    b_bytes: Union[bytes, None] = None
+    if a is None:
+        return True
 
     try:
-        # --- TYPE NORMALIZATION PHASE (NOT constant-time) ---
-        # This is acknowledged as a deviation from strict constant-time behavior
-        a_is_mpz = isinstance(a, gmpy2.mpz)
-        b_is_mpz = isinstance(b, gmpy2.mpz)
-
-        # Convert mpz to int
-        # Perform conversion inside try block in case of MemoryError
-        a_int: Union[int, str, bytes] = int(a) if a_is_mpz else a # type: ignore[assignment]
-        b_int: Union[int, str, bytes] = int(b) if b_is_mpz else b # type: ignore[assignment]
-
-
-        # Track type differences (without early return)
-        unequal_types: bool = type(a_int) is not type(b_int)
-        sign_mismatch: bool = False
-
-        # Process by type - normalize all to bytes for comparison
-        if isinstance(a_int, int) and isinstance(b_int, int):
-            sign_mismatch = (a_int < 0) != (b_int < 0)
-
-            # Compute bit lengths (already checked limits above)
-            a_bits = a_int.bit_length() if a_int != 0 else 0
-            b_bits = b_int.bit_length() if b_int != 0 else 0
-
-            # Ensure minimum bit length for proper comparison
-            bit_length = max(a_bits, b_bits, 8)  # Minimum 8 bits
-            byte_length = (bit_length + 7) // 8
-
-            # Convert to bytes using absolute values
-            # This might raise MemoryError for extremely large ints not caught by bit_length check alone
-            a_bytes = abs(a_int).to_bytes(byte_length, byteorder="big")
-            b_bytes = abs(b_int).to_bytes(byte_length, byteorder="big")
-
-        elif isinstance(a_int, str) and isinstance(b_int, str):
-            a_bytes = a_int.encode(encoding="utf-8")
-            b_bytes = b_int.encode(encoding="utf-8")
-            # Size check already done via estimation above
-
-        elif isinstance(a_int, bytes) and isinstance(b_int, bytes):
-            a_bytes = a_int
-            b_bytes = b_int
-            # Size check already done above
-
-        else:
-            # --- Mixed Type Handling ---
-            unequal_types = True
-            try:
-                # Attempt stringification, catching the specific conversion limit error
-                a_bytes_str = str(a_int)
-                b_bytes_str = str(b_int)
-            except ValueError as str_conv_err:
-                # If the error is the int<->str conversion limit, treat it as a size error
-                if "integer string conversion" in str(str_conv_err):
-                     # Raise a ValueError that will be caught by the outer handler
-                     # and cause the function to return False, preventing the test failure.
-                     raise ValueError("Comparison failed due to internal string conversion limits for large integer") from str_conv_err
-                else:
-                    # Re-raise other unexpected ValueErrors during str()
-                    raise
-
-            # Proceed with encoding if stringification succeeded
-            a_bytes = a_bytes_str.encode(encoding="utf-8")
-            b_bytes = b_bytes_str.encode(encoding="utf-8")
-
-            # Check size *after* successful conversion and encoding
-            if max(len(a_bytes), len(b_bytes)) > 10_000_000:
-                # Raise the specific error expected by the test for this case
-                raise ValueError("Mixed-type values too large after stringification for secure comparison")
-            # --- END Mixed Type Handling ---
-
-
-        # --- CONSTANT-TIME COMPARISON SECTION ---
-        # Pad to same length (constant time design)
-        # Ensure a_bytes and b_bytes are bytes before proceeding
-        if not isinstance(a_bytes, bytes) or not isinstance(b_bytes, bytes):
-             # This should not happen based on logic above, but defensive check
-             raise TypeError("Internal error: comparison values are not bytes")
+        a_bytes = _normalize_to_bytes(a, fixed_int_byte_len)
+        b_bytes = _normalize_to_bytes(b, fixed_int_byte_len)
 
         max_len = max(len(a_bytes), len(b_bytes))
-        a_bytes = a_bytes.ljust(max_len, b"\0")
-        b_bytes = b_bytes.ljust(max_len, b"\0")
 
-        # Primary XOR comparison pass
-        # The |= accumulates any differences (result remains 0 only if all bytes match)
-        for i in range(max_len):
-            result |= a_bytes[i] ^ b_bytes[i]
+        if max_len > 10_000_000:  # 10MB limit
+            raise ComparisonSizeError("Normalized input exceeds maximum size limit of 10MB.")
 
-        # Secondary pass with different operation (masks CPU optimizations)
-        # This is a countermeasure against compiler optimizations that might
-        # break our constant-time guarantees
-        dummy = 0
-        for i in range(max_len):
-            dummy |= a_bytes[i] & b_bytes[i]
+        a_padded = a_bytes.ljust(max_len, b"\x00")
+        b_padded = b_bytes.ljust(max_len, b"\x00")
 
-        # Add type and sign differences (constant-time design)
-        if sign_mismatch:
-            result |= 1
-        if unequal_types:
-            result |= 1
+        return _constant_time_bytes_compare(a_padded, b_padded)
 
-        # Final result is True only if all checks passed (result is 0)
-        return result == 0
-
-    except MemoryError as e:
-        error_msg = f"Memory allocation error in constant_time_compare: {e}"
-        logger.error(sanitize_error(error_msg, detailed_message=error_msg))
-        # Re-raise memory errors as they indicate potential resource attacks
-        raise MemoryError("Memory allocation failed during secure comparison") from e
-
-    except (TypeError, OverflowError, ValueError) as e:
-        # All other errors (including the re-raised ValueError from str() conversion)
-        # treated as comparison failures.
-        error_msg = f"Error in constant_time_compare comparison logic: {e}"
-        # Log the detailed message for debugging purposes
-        logger.debug(sanitize_error(error_msg, detailed_message=error_msg, sanitize=False))
+    except ComparisonError:
         return False
-
-    finally:
-        # --- Explicitly zero sensitive comparison data ---
-        # NOTE: In Python, this rebinds the name to a new null-byte object.
-        # The memory of the original object is marked for GC but not guaranteed
-        # to be immediately overwritten. This is a defense-in-depth measure.
-        try:
-            if a_bytes is not None and isinstance(a_bytes, bytes):
-                a_bytes_len = len(a_bytes)
-                # Create a mutable bytearray, fill with zeros, then potentially discard
-                temp_a = bytearray(a_bytes_len)
-                # No need to loop, bytearray initializes to zeros
-                a_bytes = bytes(temp_a) # Rebind to new zeroed bytes object
-                del temp_a # Remove reference to mutable array
-
-            if b_bytes is not None and isinstance(b_bytes, bytes):
-                b_bytes_len = len(b_bytes)
-                temp_b = bytearray(b_bytes_len)
-                # No need to loop, bytearray initializes to zeros
-                b_bytes = bytes(temp_b) # Rebind to new zeroed bytes object
-                del temp_b # Remove reference to mutable array
-
-        except Exception as e_final:
-            # Avoid errors in finally block masking original exceptions
-            logger.debug("Non-critical error during memory zeroing in finally block: {e_final}")
-
-        # Invalidate potentially sensitive local variables before exiting scope
-        # Note: Python doesn't guarantee immediate object deletion upon 'del' or
-        #       setting to None, but it removes the reference.
-        a = None
-        b = None
-        a_bytes = None
-        b_bytes = None
-        result = -1 # Not strictly necessary, but clears the difference indicator
 
 
 def validate_timestamp(
@@ -2727,6 +2593,8 @@ class FeldmanVSS:
         self.field: Any = field
         self.config: VSSConfig = config or VSSConfig()  # Always post-quantum secure by default
         self._byzantine_evidence: dict[int, dict[str, Any]] = {}
+        # Pre-calculate the byte length of the prime field for secure comparisons.
+        self.field_byte_len: int = (self.field.prime.bit_length() + 7) // 8
 
         # Initialize the cyclic group for commitments
         if group is None:
@@ -2744,6 +2612,16 @@ class FeldmanVSS:
 
         # Initialize hash algorithm for use in various methods
         self.hash_algorithm: HashFunc = blake3.blake3 if has_blake3 and self.config.use_blake3 else hashlib.sha3_256
+
+    def _secure_compare(self, a: ComparableType, b: ComparableType) -> bool:
+        """
+        Internal helper to securely compare two values within the VSS context.
+
+        This is a wrapper around constant_time_compare that automatically uses
+        the correct field byte length for integer comparisons, reducing boilerplate
+        and potential errors in other methods.
+        """
+        return constant_time_compare(a, b, fixed_int_byte_len=self.field_byte_len)
 
     def _sanitize_error(self, message: str, detailed_message: Optional[str] = None) -> str:
         """
@@ -3008,7 +2886,7 @@ class FeldmanVSS:
             )
 
             # Compare with expected commitment using constant-time comparison
-            return constant_time_compare(computed_commitment, expected_commitment)
+            return self._secure_compare(computed_commitment, expected_commitment)
         except Exception:
             # If any error occurs during verification, return False for safety
             return False
@@ -3428,7 +3306,8 @@ class FeldmanVSS:
             expected_checksum: int = wrapper[b"checksum"]
             actual_checksum: int = compute_checksum(packed_data)
 
-            if not constant_time_compare(actual_checksum, expected_checksum):
+            CHECKSUM_BYTE_LEN = 16  # Checksums are 128-bit (16-byte) integers
+            if not constant_time_compare(actual_checksum, expected_checksum, fixed_int_byte_len=CHECKSUM_BYTE_LEN):
                 detailed_msg = f"Checksum mismatch: expected {expected_checksum}, got {actual_checksum}"
                 message = "Data integrity check failed - possible tampering detected"
                 self._raise_sanitized_error(SecurityError, message, detailed_msg)
@@ -3842,7 +3721,7 @@ class FeldmanVSS:
             # Use helper method for consistency
             expected_zero_commitment: FieldElement = self._compute_hash_commitment(0, r_i, 0)
 
-            if not constant_time_compare(commitment_value, expected_zero_commitment):
+            if not self._secure_compare(commitment_value, expected_zero_commitment):
                 detailed_msg = f"Zero commitment verification failed for party {party_id}, commitment: {commitment_value}, expected: {expected_zero_commitment}"
                 message = "Zero commitment verification failed"
                 self._raise_sanitized_error(VerificationError, message, detailed_msg)
@@ -5337,7 +5216,7 @@ class FeldmanVSS:
             expected_commitment = gmpy2.mod(blinding_commitment_value + challenge_mpz * commitment_value, self.group.prime)
 
             # 4. Update validity flag using constant-time comparison to prevent timing attacks
-            is_valid = constant_time_compare(computed_commitment, expected_commitment)
+            is_valid = self._secure_compare(computed_commitment, expected_commitment)
             all_valid = all_valid & is_valid  # Bitwise AND to prevent short-circuit
 
             # Clean up sensitive data before returning
@@ -5425,7 +5304,7 @@ class FeldmanVSS:
             expected_challenge: FieldElement = int.from_bytes(challenge_hash, byteorder="big") % self.field.prime
 
             # Compare the expected challenge with the one in the proof using constant-time comparison
-            return constant_time_compare(expected_challenge, challenge)
+            return self._secure_compare(expected_challenge, challenge)
         except Exception as e:
             # Catch any other unexpected errors during challenge recomputation
             detailed_msg: str = f"Error during challenge consistency verification: {e}"
@@ -5496,7 +5375,7 @@ class FeldmanVSS:
 
             # Safely access first element of commitment tuple
             commitment_value = commitments[0][0] if commitments[0] else None
-            if commitment_value is None or not constant_time_compare(commitment_value, expected):
+            if commitment_value is None or not self._secure_compare(commitment_value, expected):
                 evidence["invalid_zero_commitment"] = {
                     "commitment": int(commitment_value) if commitment_value is not None else None,
                     "expected": int(expected),
@@ -6746,7 +6625,7 @@ def verify_dual_commitments(
 
             # Determine if this verification should count using constant-time operations
             should_check: bool = response_randomizers is not None and i < len(response_randomizers)
-            equality_result: bool = constant_time_compare(computed, expected)
+            equality_result: bool = self._secure_compare(computed, expected)
 
             # Improved constant-time conditional update
             mask = -int(should_check)  # Creates all 1s (for True) or all 0s (for False)
@@ -6770,6 +6649,6 @@ def verify_dual_commitments(
             )
 
             # Check equality using constant-time comparison
-            all_valid &= constant_time_compare(left_side, right_side)
+            all_valid &= self._secure_compare(left_side, right_side)
 
     return all_valid
