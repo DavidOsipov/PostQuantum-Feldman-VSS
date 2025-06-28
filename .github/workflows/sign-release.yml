@@ -27,7 +27,7 @@ jobs:
           python -m pip install --upgrade pip
 
       - name: Sign Script with Sigstore
-        uses: sigstore/gh-action-sigstore-python@6409abb6b6aa159c173b7ccfc47078bec5735676
+        uses: sigstore/gh-action-sigstore-python@2f1f677fe6b7af9bd419433eef9e42904239e238
         with:
           inputs: feldman_vss.py README.md SECURITY.md LICENSE pyproject.toml
           release-signing-artifacts: true
