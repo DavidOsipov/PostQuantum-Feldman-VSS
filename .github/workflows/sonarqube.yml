@@ -58,7 +58,7 @@ jobs:
         tool: [bandit, ruff, mypy, pylint, codeql, snyk]
     steps:
       - name: Checkout code
-        uses: actions/checkout@09d2acae674a48949e3602304ab46fd20ae0c42f
+        uses: actions/checkout@ff7abcd0c3c05ccf6adc123a8cd1fd4fb30fb493
 
       - name: Set up Python
         if: matrix.tool != 'codeql'  # CodeQL has its own Python setup
@@ -241,7 +241,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@09d2acae674a48949e3602304ab46fd20ae0c42f # Pin to v4
+        uses: actions/checkout@ff7abcd0c3c05ccf6adc123a8cd1fd4fb30fb493 # Pin to v4
         with:
           # Sonar needs full history for accurate blame information and new code detection
           fetch-depth: 0
