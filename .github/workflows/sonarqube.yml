@@ -126,7 +126,7 @@ jobs:
 
       - name: Setup Snyk CLI
         if: matrix.tool == 'snyk'
-        uses: snyk/actions/setup@cdb760004ba9ea4d525f2e043745dfe85bb9077e
+        uses: snyk/actions/setup@86b1cee1b8e110a78d528b3e1328a80e218111d2
         with:
           snyk-version: latest
 
