@@ -374,7 +374,7 @@ jobs:
           echo "---------------------------------"
 
       - name: Analyze with SonarQube
-        uses: SonarSource/sonarqube-scan-action@74f62c995b9850ae60753f0894f5e4e0ce69407f # Pin to specific commit or major version like @v2
+        uses: SonarSource/sonarqube-scan-action@786af10ed495f5fe0d685df87f5f8a075599aa85 # Pin to specific commit or major version like @v2
         env:
           # GITHUB_TOKEN required for PR decoration, SONAR_TOKEN for auth
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
