@@ -39,7 +39,7 @@ jobs:
       - name: Set up Snyk CLI to check for security issues
         # Snyk can be used to break the build when it detects security issues.
         # In this case we want to upload the SAST issues to GitHub Code Scanning
-        uses: snyk/actions/setup@cdb760004ba9ea4d525f2e043745dfe85bb9077e
+        uses: snyk/actions/setup@10a13eb1b556d09c820d6dbc05233e68b30f10b0
         with:
           snyk-version: latest
 
@@ -58,7 +58,7 @@ jobs:
           if [ -f pyproject.toml ]; then pip install poetry && poetry install; fi
 
       - name: Run Snyk to check for vulnerabilities and output Sarif
-        uses: snyk/actions/python-3.10@cdb760004ba9ea4d525f2e043745dfe85bb9077e
+        uses: snyk/actions/python-3.10@10a13eb1b556d09c820d6dbc05233e68b30f10b0
         continue-on-error: true # To make sure that SARIF upload gets called
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_SECRET_TOKEN }}
@@ -66,7 +66,7 @@ jobs:
           args: --sarif-file-output=sarif/snyk.sarif
 
       - name: Run Snyk to check for vulnerabilities and monitor
-        uses: snyk/actions/python-3.10@cdb760004ba9ea4d525f2e043745dfe85bb9077e
+        uses: snyk/actions/python-3.10@10a13eb1b556d09c820d6dbc05233e68b30f10b0
         continue-on-error: true # To make sure that SARIF upload gets called
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_SECRET_TOKEN }}
