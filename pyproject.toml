@@ -102,7 +102,7 @@ ruff = ">=0.11.0"
 bandit = ">=1.8.1"
 types-requests = "*"
 types-setuptools = "*"
-msgpack-types = "==0.5.0"
+msgpack-types = "==0.7.0"
 gmpy2-stubs = "==2.2.1.5"
 # Test dependencies are also included here for the full dev environment
 pytest = ">=8.3.0"
