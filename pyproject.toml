@@ -45,7 +45,7 @@ dependencies = [
 
 [project.optional-dependencies]
 # Optional runtime dependency for memory monitoring feature
-memory_monitor = ["psutil == 7.0.0"]
+memory_monitor = ["psutil ==7.2.2"]
 
 # Dependencies for development (linting, type checking, etc.)
 dev = [
