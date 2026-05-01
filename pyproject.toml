@@ -106,7 +106,7 @@ msgpack-types = "==0.5.0"
 gmpy2-stubs = "==2.2.1.5"
 # Test dependencies are also included here for the full dev environment
 pytest = ">=8.3.0"
-pytest-cov = ">=5.0.0"
+pytest-cov = ">=7.1.0"
 pytest-benchmark = ">=4.0.0"
 pytest-timeout = ">=2.3.0"
 pytest-xdist = ">=3.5.0"
