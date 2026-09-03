@@ -5,7 +5,7 @@ gem "minima", "~> 2.5"  # Theme specified in your _config.yml
 #gem "jekyll-remote-theme"
 
 # Plugins
-gem "jekyll-relative-links", "~> 0.7.0"
+gem "jekyll-relative-links", "~> 0.8.0"
 gem "jekyll-include-cache", "~> 0.2.1" # Optional: Improves build performance
 gem "jekyll-redirect-from", "~> 0.16.0" # For redirects if needed
 gem 'jekyll-seo-tag', "~> 2.8" # SEO tags for better search engine visibility 
