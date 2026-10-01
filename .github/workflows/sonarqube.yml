@@ -64,7 +64,7 @@ jobs:
         if: matrix.tool != 'codeql'  # CodeQL has its own Python setup
         uses: actions/setup-python@5db1cf9a59fb97c40a68accab29236f0da7e94db
         with:
-          python-version: '3.13' # Use a consistent Python version for analysis tools
+          python-version: '3.14' # Use a consistent Python version for analysis tools
 
       - name: Cache pip dependencies
         if: matrix.tool != 'codeql'
